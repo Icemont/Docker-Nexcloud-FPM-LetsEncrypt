@@ -1,0 +1,55 @@
+version: '3.4'
+
+volumes:
+  nextcloud:
+  db:
+  nginx:
+  letsencrypt:
+
+services:
+  db:
+    image: mariadb
+    restart: always
+    command: --innodb-read-only-compressed=OFF --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+    volumes:
+      - db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+  app:
+    depends_on:
+      - db
+    image: nextcloud:fpm
+    restart: always
+    links:
+      - db
+    volumes:
+      - nextcloud:/var/www/html
+    environment:
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_HOST=db
+      - NEXTCLOUD_TRUSTED_DOMAINS=${DOMAIN_NAME}
+  web:
+    depends_on:
+      - app
+    build:
+      context: ./nginx
+      network: host
+      args:
+        - CERTBOT_EMAIL=${CERTBOT_EMAIL}
+        - DOMAIN_NAME=${DOMAIN_NAME}
+    image: icemont-nginx-ssl
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+    links:
+      - app
+    volumes:
+      - nginx:/etc/nginx
+      - letsencrypt:/etc/letsencrypt
+      - nextcloud:/var/www/html
